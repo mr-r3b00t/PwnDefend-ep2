@@ -58,6 +58,10 @@ ssh -L 80:127.0.0.1:80 helios@192.168.3.4
 #flag 2 - now we want to get to an different IP
 ssh -L 80:192.168.2.8:80 helios@192.168.3.4
 
+###not in the video but you can use a private key for auth using this
+
+sshuttle -r helios@192.168.3.4 192.168.2.0/24 -vv --ssh-cmd 'ssh -i private_key_filename_rsa'
+
 #PROXY CHAINS
 ssh -D 9050 helios@192.168.3.4
 #re-configure proxy chains
